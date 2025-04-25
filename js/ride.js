@@ -88,9 +88,16 @@ WildRydes.map = WildRydes.map || {};
     }
 
     function handleRequestClick(event) {
-        var pickupLocation = WildRydes.map.selectedPoint;
         event.preventDefault();
-        requestUnicorn(pickupLocation);
+
+    if (!authToken) {
+        alert('Auth token not ready yet. Please wait or sign in again.');
+        return;
+    }
+
+    var pickupLocation = WildRydes.map.selectedPoint;
+    requestUnicorn(pickupLocation);
+
     }
 
     function animateArrival(callback) {
