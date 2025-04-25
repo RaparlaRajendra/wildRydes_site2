@@ -31,10 +31,21 @@ WildRydes.map = WildRydes.map || {};
             contentType: 'application/json',
             success: completeRequest,
             error: function ajaxError(jqXHR, textStatus, errorThrown) {
-                console.error('Error requesting ride: ', textStatus, ', Details: ', errorThrown);
-                console.error('Response: ', jqXHR.responseText);
-                alert('An error occured when requesting your unicorn:\n' + jqXHR.responseText);
-            }
+    console.error('Error requesting ride: ', textStatus, ', Details: ', errorThrown);
+    console.error('Response: ', jqXHR.responseText);
+
+    let errorMessage = 'Unknown error';
+
+    try {
+        const responseJson = JSON.parse(jqXHR.responseText);
+        errorMessage = responseJson.Error || responseJson.message || errorThrown;
+    } catch (e) {
+        errorMessage = jqXHR.responseText || errorThrown || 'Unknown error';
+    }
+
+    alert('An error occurred when requesting your unicorn:\n' + errorMessage);
+}
+
         });
     }
 
