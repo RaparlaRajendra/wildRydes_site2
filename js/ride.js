@@ -62,13 +62,35 @@ WildRydes.map = WildRydes.map || {};
     }
 
     function completeRequest(result) {
-        var unicorn;
-        var pronoun;
         console.log('Response received from API:', result);
-
-        unicorn = result.Unicorn;
-        pronoun = unicorn.Gender === 'Male' ? 'his' : 'her';
-
+        
+        // Add defensive checks to prevent "Cannot read properties of undefined"
+        if (!result) {
+            console.error('Invalid response: result is undefined or null');
+            displayUpdate('Error: Unable to process unicorn request.');
+            return;
+        }
+        
+        if (!result.Unicorn) {
+            console.error('Invalid response: Unicorn object is missing', result);
+            displayUpdate('Your unicorn is on the way!');
+            return;
+        }
+        
+        var unicorn = result.Unicorn;
+        
+        if (!unicorn.Name || !unicorn.Color) {
+            console.error('Invalid response: Unicorn data incomplete', unicorn);
+            displayUpdate('Your unicorn is on the way!');
+            return;
+        }
+        
+        // Handle missing Gender property
+        var pronoun = 'their';
+        if (unicorn.Gender) {
+            pronoun = unicorn.Gender === 'Male' ? 'his' : 'her';
+        }
+        
         displayUpdate(unicorn.Name + ', your ' + unicorn.Color + ' unicorn, is on ' + pronoun + ' way.');
 
         animateArrival(function animateCallback() {
