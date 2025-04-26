@@ -5,6 +5,8 @@ WildRydes.map = WildRydes.map || {};
 
 (function rideScopeWrapper($) {
     var authToken;
+
+    // Get auth token
     WildRydes.authToken.then(function setAuthToken(token) {
         if (token) {
             authToken = token;
@@ -15,7 +17,14 @@ WildRydes.map = WildRydes.map || {};
         alert(error);
         window.location.href = '/signin.html';
     });
+
     function requestUnicorn(pickupLocation) {
+        // Check if pickupLocation is valid
+        if (!pickupLocation || !pickupLocation.latitude || !pickupLocation.longitude) {
+            alert('Pickup location not set. Please click on the map first.');
+            return;
+        }
+
         $.ajax({
             method: 'POST',
             url: _config.api.invokeUrl + '/ride',
@@ -31,35 +40,41 @@ WildRydes.map = WildRydes.map || {};
             contentType: 'application/json',
             success: completeRequest,
             error: function ajaxError(jqXHR, textStatus, errorThrown) {
-    console.error('Error requesting ride: ', textStatus, ', Details: ', errorThrown);
-    console.error('Response: ', jqXHR.responseText);
+                console.error('Error requesting ride:', textStatus, ', Details:', errorThrown);
+                console.error('Response:', jqXHR.responseText);
 
-    let errorMessage = 'Unknown error';
+                let errorMessage = 'Unknown error occurred';
 
-    try {
-        const responseJson = JSON.parse(jqXHR.responseText);
-        errorMessage = responseJson.Error || responseJson.message || errorThrown;
-    } catch (e) {
-        errorMessage = jqXHR.responseText || errorThrown || 'Unknown error';
-    }
+                try {
+                    const responseJson = JSON.parse(jqXHR.responseText);
+                    errorMessage = responseJson.Error || responseJson.errorMessage || responseJson.message || errorThrown;
+                } catch (e) {
+                    if (jqXHR.responseText) {
+                        errorMessage = jqXHR.responseText;
+                    } else if (errorThrown) {
+                        errorMessage = errorThrown;
+                    }
+                }
 
-    alert('An error occurred when requesting your unicorn:\n' + errorMessage);
-}
-
+                alert('An error occurred when requesting your unicorn:\n' + errorMessage);
+            }
         });
     }
 
     function completeRequest(result) {
         var unicorn;
         var pronoun;
-        console.log('Response received from API: ', result);
+        console.log('Response received from API:', result);
+
         unicorn = result.Unicorn;
         pronoun = unicorn.Gender === 'Male' ? 'his' : 'her';
+
         displayUpdate(unicorn.Name + ', your ' + unicorn.Color + ' unicorn, is on ' + pronoun + ' way.');
+
         animateArrival(function animateCallback() {
             displayUpdate(unicorn.Name + ' has arrived. Giddy up!');
             WildRydes.map.unsetLocation();
-            $('#request').prop('disabled', 'disabled');
+            $('#request').prop('disabled', true);
             $('#request').text('Set Pickup');
         });
     }
@@ -90,14 +105,14 @@ WildRydes.map = WildRydes.map || {};
     function handleRequestClick(event) {
         event.preventDefault();
 
-    if (!authToken) {
-        alert('Auth token not ready yet. Please wait or sign in again.');
-        return;
-    }
+        if (!authToken) {
+            alert('Auth token not ready yet. Please wait or sign in again.');
+            return;
+        }
 
-    var pickupLocation = WildRydes.map.selectedPoint;
-    requestUnicorn(pickupLocation);
+        var pickupLocation = WildRydes.map.selectedPoint;
 
+        requestUnicorn(pickupLocation);
     }
 
     function animateArrival(callback) {
