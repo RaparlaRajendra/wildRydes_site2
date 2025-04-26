@@ -4,10 +4,10 @@ var WildRydes = window.WildRydes || {};
 WildRydes.map = WildRydes.map || {};
 
 (function rideScopeWrapper($) {
-    let authToken;
-    let isTokenValid = false;
+    var authToken;
+    var isTokenValid = false;
 
-    // Enhanced token validation
+    // Get auth token and enable request button when ready
     WildRydes.authToken
         .then(function setAuthToken(token) {
             if (token) {
@@ -22,16 +22,16 @@ WildRydes.map = WildRydes.map || {};
 
     function handleAuthFailure(error) {
         console.error('Authentication Error:', error);
-        alert('Session expired. Please sign in again.');
+        alert('Session expired or not authenticated. Please sign in again.');
         window.location.href = '/signin.html';
     }
 
     function requestUnicorn(pickupLocation) {
         if (!validatePickup(pickupLocation)) return;
-        
-        // Token revalidation before request
+
+        // Revalidate token before request
         WildRydes.authToken
-            .then(token => {
+            .then(function(token) {
                 authToken = token;
                 makeAPIRequest(pickupLocation);
             })
@@ -39,7 +39,7 @@ WildRydes.map = WildRydes.map || {};
     }
 
     function validatePickup(pickup) {
-        if (!pickup?.latitude || !pickup?.longitude) {
+        if (!pickup || !pickup.latitude || !pickup.longitude) {
             alert('Please select a valid pickup location on the map.');
             return false;
         }
@@ -49,7 +49,7 @@ WildRydes.map = WildRydes.map || {};
     function makeAPIRequest(pickup) {
         $.ajax({
             method: 'POST',
-            url: `${_config.api.invokeUrl}/ride`,
+            url: _config.api.invokeUrl + '/ride',
             headers: { Authorization: authToken },
             data: JSON.stringify({
                 PickupLocation: {
@@ -65,18 +65,34 @@ WildRydes.map = WildRydes.map || {};
 
     function handleRequestSuccess(result) {
         console.debug('API Success:', result);
-        
-        if (!result?.Unicorn) {
+
+        // Defensive checks
+        if (!result || typeof result !== 'object') {
+            displayUpdate('Error: Invalid response from server.');
+            return;
+        }
+
+        if (result.message === "Unauthorized") {
+            alert("Your session has expired or you are not authorized. Please sign in again.");
+            window.location.href = '/signin.html';
+            return;
+        }
+
+        if (!result.Unicorn) {
             displayUpdate('Your unicorn is on the way!');
             return;
         }
 
-        const { Name, Color, Gender = 'their' } = result.Unicorn;
-        const pronoun = Gender === 'Male' ? 'his' : Gender === 'Female' ? 'her' : 'their';
-        
-        displayUpdate(`${Name}, your ${Color} unicorn, is on ${pronoun} way.`);
-        animateArrival(() => {
-            displayUpdate(`${Name} has arrived. Giddy up!`);
+        var unicorn = result.Unicorn;
+        var pronoun = 'their';
+        if (unicorn.Gender) {
+            pronoun = unicorn.Gender === 'Male' ? 'his' : (unicorn.Gender === 'Female' ? 'her' : 'their');
+        }
+
+        displayUpdate(unicorn.Name + ', your ' + unicorn.Color + ' unicorn, is on ' + pronoun + ' way.');
+
+        animateArrival(function animateCallback() {
+            displayUpdate(unicorn.Name + ' has arrived. Giddy up!');
             WildRydes.map.unsetLocation();
             $('#request').prop('disabled', true).text('Set Pickup');
         });
@@ -84,21 +100,20 @@ WildRydes.map = WildRydes.map || {};
 
     function handleRequestError(jqXHR) {
         console.error('API Error:', jqXHR);
-        let userMessage = 'Error requesting ride';
+        var userMessage = 'Error requesting ride';
 
         try {
-            const response = JSON.parse(jqXHR.responseText);
-            if (jqXHR.status === 401 || response?.message === 'Unauthorized') {
-                userPool.getCurrentUser()?.signOut();
+            var response = JSON.parse(jqXHR.responseText);
+            if (jqXHR.status === 401 || response.message === 'Unauthorized') {
                 handleAuthFailure();
                 return;
             }
-            userMessage = response?.Error || response?.message || userMessage;
+            userMessage = response.Error || response.message || userMessage;
         } catch (e) {
             userMessage = jqXHR.responseText || userMessage;
         }
 
-        alert(`${userMessage}\nPlease try again.`);
+        alert(userMessage + '\nPlease try again.');
     }
 
     // UI Initialization
@@ -108,6 +123,17 @@ WildRydes.map = WildRydes.map || {};
             .prop('disabled', true); // Disable until token ready
 
         $(WildRydes.map).on('pickupChange', handlePickupChanged);
+
+        WildRydes.authToken.then(function updateAuthMessage(token) {
+            if (token) {
+                displayUpdate('You are authenticated. Click to see your <a href="#authTokenModal" data-toggle="modal">auth token</a>.');
+                $('.authToken').text(token);
+            }
+        });
+
+        if (!_config.api.invokeUrl) {
+            $('#noApiMessage').show();
+        }
     });
 
     function handlePickupChanged() {
@@ -125,6 +151,28 @@ WildRydes.map = WildRydes.map || {};
         requestUnicorn(WildRydes.map.selectedPoint);
     }
 
-    // Rest of your existing animation and display functions
-    // (animateArrival, displayUpdate) remain unchanged
+    function animateArrival(callback) {
+        var dest = WildRydes.map.selectedPoint;
+        var origin = {};
+
+        if (dest.latitude > WildRydes.map.center.latitude) {
+            origin.latitude = WildRydes.map.extent.minLat;
+        } else {
+            origin.latitude = WildRydes.map.extent.maxLat;
+        }
+
+        if (dest.longitude > WildRydes.map.center.longitude) {
+            origin.longitude = WildRydes.map.extent.minLng;
+        } else {
+            origin.longitude = WildRydes.map.extent.maxLng;
+        }
+
+        WildRydes.map.animate(origin, dest, callback);
+    }
+
+    // The missing function!
+    function displayUpdate(text) {
+        $('#updates').append($('<li>' + text + '</li>'));
+    }
+
 }(jQuery));
